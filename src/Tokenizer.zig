@@ -39,7 +39,7 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
                     Token.L_BRACE => {
                         state = .open_3;
                     },
-                    Token.COMMENT => {
+                    Token.EXCL => {
                         curr_token.start_pos = index - 2;
                         curr_token.type = .comment;
                         state = .within_tag;
@@ -49,7 +49,7 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
                         curr_token.type = .implicit_iter;
                         state = .within_tag;
                     },
-                    Token.RAW => {
+                    Token.AMP => {
                         curr_token.start_pos = index - 2;
                         curr_token.type = .noescape;
                         state = .within_tag;
@@ -64,7 +64,7 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
             },
             .open_3 => {
                 switch (curr_char) {
-                    Token.L_BRACE, Token.R_BRACE, Token.COMMENT => return error.InvalidToken,
+                    Token.L_BRACE, Token.R_BRACE, Token.EXCL => return error.InvalidToken,
                     else => {
                         curr_token.start_pos = index - 3;
                         curr_token.type = .noescape_3;

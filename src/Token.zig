@@ -4,9 +4,9 @@ type: TokenType,
 
 pub const L_BRACE = '{';
 pub const R_BRACE = '}';
-pub const COMMENT = '!';
+pub const EXCL = '!';
 pub const DOT = '.';
-pub const RAW = '&';
+pub const AMP = '&';
 
 pub const TokenType = enum {
     none,
