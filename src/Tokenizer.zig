@@ -6,6 +6,8 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
     var curr_char: u8 = 0;
     var curr_token: Token = .{ .start_pos = 0, .end_pos = 0, .type = .none };
 
+    errdefer tokens.deinit();
+
     while (true) : (index += 1) {
         if (index >= s.len) {
             break;
@@ -35,19 +37,24 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
             .open_2 => {
                 switch (curr_char) {
                     Token.L_BRACE => {
-                        curr_token.start_pos = index - 2;
-                        curr_token.type = .noescape_variable;
-                        state = .within_tag;
+                        state = .open_3;
                     },
                     Token.COMMENT => {
                         curr_token.start_pos = index - 2;
                         curr_token.type = .comment;
                         state = .within_tag;
                     },
-                    Token.R_BRACE => {
-                        // ex: {{{}
-                        return error.InvalidToken;
+                    Token.DOT => {
+                        curr_token.start_pos = index - 2;
+                        curr_token.type = .implicit_iter;
+                        state = .within_tag;
                     },
+                    Token.RAW => {
+                        curr_token.start_pos = index - 2;
+                        curr_token.type = .noescape;
+                        state = .within_tag;
+                    },
+                    Token.R_BRACE => return error.InvalidToken,
                     else => {
                         curr_token.start_pos = index - 2;
                         curr_token.type = .variable;
@@ -55,22 +62,41 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
                     },
                 }
             },
+            .open_3 => {
+                switch (curr_char) {
+                    Token.L_BRACE, Token.R_BRACE, Token.COMMENT => return error.InvalidToken,
+                    else => {
+                        curr_token.start_pos = index - 3;
+                        curr_token.type = .noescape_3;
+                        state = .within_tag;
+                    },
+                }
+            },
             .within_tag => {
                 switch (curr_char) {
                     Token.R_BRACE => state = .close_1,
-                    else => {},
+                    else => {
+                        switch (curr_token.type) {
+                            .implicit_iter => {
+                                if (curr_char != Token.R_BRACE) {
+                                    return error.InvalidToken;
+                                }
+                            },
+                            else => {},
+                        }
+                    },
                 }
             },
             .close_1 => {
                 switch (curr_char) {
                     Token.R_BRACE => {
                         switch (curr_token.type) {
-                            .variable, .comment => {
+                            .variable, .comment, .implicit_iter, .noescape => {
                                 state = .complete_tag;
                                 curr_token.end_pos = index;
                                 try tokens.append(curr_token);
                             },
-                            .noescape_variable => state = .close_2,
+                            .noescape_3 => state = .close_2,
                             .none => return error.InvalidToken,
                         }
                     },
@@ -104,6 +130,7 @@ const State = enum {
     raw,
     open_1,
     open_2,
+    open_3,
     within_tag,
     close_1,
     close_2,
@@ -150,15 +177,38 @@ test "variables - multiple with no other characters" {
     try testing.expectEqualStrings("{{first_name}}", str[toks[1].start_pos .. toks[1].end_pos + 1]);
 }
 
-test "noescape - no escape" {
+test "variables - invalid closing tag" {
+    const str = "Names: {{}}";
+    const err = parseFromSlice(testing.allocator, str);
+    try testing.expectError(error.InvalidToken, err);
+}
+
+test "noescape3 - no escape" {
     const str = "Time: {{{html_data}}} seconds.";
     const toks = try parseFromSlice(testing.allocator, str);
     defer testing.allocator.free(toks);
     try testing.expectEqualSlices(Token, &.{
-        .{ .start_pos = 6, .end_pos = 20, .type = .noescape_variable },
+        .{ .start_pos = 6, .end_pos = 20, .type = .noescape_3 },
     }, toks);
 
     try testing.expectEqualStrings("{{{html_data}}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
+}
+
+test "noescape3 - invalid closing tag" {
+    const str = "Names: {{{}}}";
+    const err = parseFromSlice(testing.allocator, str);
+    try testing.expectError(error.InvalidToken, err);
+}
+
+test "noescape - no escape" {
+    const str = "Time: {{& html_data}} seconds.";
+    const toks = try parseFromSlice(testing.allocator, str);
+    defer testing.allocator.free(toks);
+    try testing.expectEqualSlices(Token, &.{
+        .{ .start_pos = 6, .end_pos = 20, .type = .noescape },
+    }, toks);
+
+    try testing.expectEqualStrings("{{& html_data}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
 }
 
 test "comment - comment" {
@@ -172,4 +222,21 @@ test "comment - comment" {
 
     try testing.expectEqualStrings("{{! this is a comment}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
     try testing.expectEqualStrings("{{secs}}", str[toks[1].start_pos .. toks[1].end_pos + 1]);
+}
+
+test "iterator - implicit" {
+    const str = "Names: {{.}}";
+    const toks = try parseFromSlice(testing.allocator, str);
+    defer testing.allocator.free(toks);
+    try testing.expectEqualSlices(Token, &.{
+        .{ .start_pos = 7, .end_pos = 11, .type = .implicit_iter },
+    }, toks);
+
+    try testing.expectEqualStrings("{{.}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
+}
+
+test "iterator - invalid implicit" {
+    const str = "Names: {{.names}}";
+    const err = parseFromSlice(testing.allocator, str);
+    try testing.expectError(error.InvalidToken, err);
 }
