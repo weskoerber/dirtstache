@@ -7,6 +7,10 @@ pub const R_BRACE = '}';
 pub const EXCL = '!';
 pub const DOT = '.';
 pub const AMP = '&';
+pub const NUM = '#';
+pub const CARAT = '^';
+pub const F_SLASH = '/';
+pub const GT = '>';
 
 pub const TokenType = enum {
     none,
@@ -25,4 +29,16 @@ pub const TokenType = enum {
 
     // {{.}}
     implicit_iter,
+
+    // {{# section}}
+    section_open,
+
+    // {{^ section}}
+    inverted_open,
+
+    // {{/ section}}
+    section_close,
+
+    // {{> partial}}
+    partial,
 };

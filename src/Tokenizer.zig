@@ -2,7 +2,6 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
     var tokens = ArrayList(Token).init(allocator);
     var index: usize = 0;
     var state: State = .raw;
-    var prev_char: u8 = 0;
     var curr_char: u8 = 0;
     var curr_token: Token = .{ .start_pos = 0, .end_pos = 0, .type = .none };
 
@@ -54,6 +53,26 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
                         curr_token.type = .noescape;
                         state = .within_tag;
                     },
+                    Token.NUM => {
+                        curr_token.start_pos = index - 2;
+                        curr_token.type = .section_open;
+                        state = .within_tag;
+                    },
+                    Token.CARAT => {
+                        curr_token.start_pos = index - 2;
+                        curr_token.type = .inverted_open;
+                        state = .within_tag;
+                    },
+                    Token.F_SLASH => {
+                        curr_token.start_pos = index - 2;
+                        curr_token.type = .section_close;
+                        state = .within_tag;
+                    },
+                    Token.GT => {
+                        curr_token.start_pos = index - 2;
+                        curr_token.type = .partial;
+                        state = .within_tag;
+                    },
                     Token.R_BRACE => return error.InvalidToken,
                     else => {
                         curr_token.start_pos = index - 2;
@@ -64,7 +83,12 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
             },
             .open_3 => {
                 switch (curr_char) {
-                    Token.L_BRACE, Token.R_BRACE, Token.EXCL => return error.InvalidToken,
+                    Token.L_BRACE,
+                    Token.R_BRACE,
+                    Token.EXCL,
+                    Token.AMP,
+                    Token.F_SLASH,
+                    => return error.InvalidToken,
                     else => {
                         curr_token.start_pos = index - 3;
                         curr_token.type = .noescape_3;
@@ -91,7 +115,15 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
                 switch (curr_char) {
                     Token.R_BRACE => {
                         switch (curr_token.type) {
-                            .variable, .comment, .implicit_iter, .noescape => {
+                            .variable,
+                            .comment,
+                            .implicit_iter,
+                            .noescape,
+                            .section_open,
+                            .inverted_open,
+                            .section_close,
+                            .partial,
+                            => {
                                 state = .complete_tag;
                                 curr_token.end_pos = index;
                                 try tokens.append(curr_token);
@@ -114,8 +146,6 @@ pub fn parseFromSlice(allocator: Allocator, s: []const u8) ![]const Token {
                 }
             },
         }
-
-        prev_char = curr_char;
     }
 
     return tokens.toOwnedSlice();
@@ -239,4 +269,41 @@ test "iterator - invalid implicit" {
     const str = "Names: {{.names}}";
     const err = parseFromSlice(testing.allocator, str);
     try testing.expectError(error.InvalidToken, err);
+}
+
+test "section - section" {
+    const str = "{{#person}}\n    Never shown!\n{{/person}}";
+    const toks = try parseFromSlice(testing.allocator, str);
+    defer testing.allocator.free(toks);
+    try testing.expectEqualSlices(Token, &.{
+        .{ .start_pos = 0, .end_pos = 10, .type = .section_open },
+        .{ .start_pos = 29, .end_pos = 39, .type = .section_close },
+    }, toks);
+
+    try testing.expectEqualStrings("{{#person}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
+    try testing.expectEqualStrings("{{/person}}", str[toks[1].start_pos .. toks[1].end_pos + 1]);
+}
+
+test "section - inverted" {
+    const str = "{{^person}}\n    Never shown!\n{{/person}}";
+    const toks = try parseFromSlice(testing.allocator, str);
+    defer testing.allocator.free(toks);
+    try testing.expectEqualSlices(Token, &.{
+        .{ .start_pos = 0, .end_pos = 10, .type = .inverted_open },
+        .{ .start_pos = 29, .end_pos = 39, .type = .section_close },
+    }, toks);
+
+    try testing.expectEqualStrings("{{^person}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
+    try testing.expectEqualStrings("{{/person}}", str[toks[1].start_pos .. toks[1].end_pos + 1]);
+}
+
+test "partial - partial" {
+    const str = "Themes: {{> some_partial}}";
+    const toks = try parseFromSlice(testing.allocator, str);
+    defer testing.allocator.free(toks);
+    try testing.expectEqualSlices(Token, &.{
+        .{ .start_pos = 8, .end_pos = 25, .type = .partial },
+    }, toks);
+
+    try testing.expectEqualStrings("{{> some_partial}}", str[toks[0].start_pos .. toks[0].end_pos + 1]);
 }
