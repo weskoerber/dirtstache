@@ -15,7 +15,9 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
                 inline for (data_typeinfo.Struct.fields) |field| {
                     if (std.mem.eql(u8, token.getName(s), field.name)) {
                         const value = @field(data, field.name);
-                        try dest.appendSlice(value);
+                        const str = try formatValue(allocator, value);
+                        defer allocator.free(str);
+                        try dest.appendSlice(str);
                     }
                 }
             },
@@ -33,7 +35,18 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
     return try dest.toOwnedSlice();
 }
 
+fn formatValue(allocator: Allocator, value: anytype) ![]const u8 {
+    return switch (@typeInfo(@TypeOf(value))) {
+        .Bool => try fmt.allocPrint(allocator, "{s}", .{if (value) "true" else "false"}),
+        .Int, .ComptimeInt => try fmt.allocPrint(allocator, "{d}", .{value}),
+        .Array => |a| if (a.child != u8) @panic("Pointer to " ++ @typeName(a.child) ++ " not allowed") else try fmt.allocPrint(allocator, "{s}", .{value}),
+        .Pointer => |p| if (@typeInfo(p.child) != .Array) @panic("Pointer to " ++ @typeName(p.child) ++ " not allowed") else try fmt.allocPrint(allocator, "{s}", .{value}),
+        else => @panic("TODO: Type '" ++ @typeName(@TypeOf(value)) ++ " not yet implemented"),
+    };
+}
+
 const std = @import("std");
+const fmt = std.fmt;
 const testing = std.testing;
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -62,4 +75,20 @@ test "variable - string" {
     defer testing.allocator.free(res);
 
     try testing.expectEqualStrings("Hello, world!", res);
+}
+
+test "variable - integer" {
+    const str = "Earned ${{currency}}!";
+    const res = try renderSlice(testing.allocator, str, .{ .currency = 42 });
+    defer testing.allocator.free(res);
+
+    try testing.expectEqualStrings("Earned $42!", res);
+}
+
+test "variable - bool" {
+    const str = "Online: {{is_online}}";
+    const res = try renderSlice(testing.allocator, str, .{ .is_online = false });
+    defer testing.allocator.free(res);
+
+    try testing.expectEqualStrings("Online: false", res);
 }
