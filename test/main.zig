@@ -23,18 +23,7 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    const args = try std.process.argsAlloc(allocator);
-
-    var options = Options{};
-
-    for (args) |arg| {
-        if (std.mem.eql(u8, arg, "--verbose")) {
-            options.verbose = true;
-            continue;
-        }
-    }
-
-    try runTestSuite(allocator, .comments, options);
+    try runTestSuite(allocator, .comments);
 }
 
 fn runTestSuite(allocator: std.mem.Allocator, comptime suite: TestSuiteType, options: Options) !void {
@@ -51,11 +40,14 @@ fn runTestSuite(allocator: std.mem.Allocator, comptime suite: TestSuiteType, opt
     const file_data = try file.readToEndAlloc(allocator, 1024 * 1024 * 1024);
     const test_suite = try std.json.parseFromSliceLeaky(TestSuite, allocator, file_data, .{ .ignore_unknown_fields = true });
 
+    var passed: usize = 0;
     for (test_suite.tests) |case| {
         const actual = try dirtstache.Renderer.renderSlice(allocator, case.template, .{});
         std.debug.print("\n{s}", .{case.name});
-        std.testing.expectEqualStrings(case.expected, actual) catch {};
+        if (std.testing.expectEqualStrings(case.expected, actual)) {
+            passed += 1;
+        } else |_| {}
     }
 
-    std.debug.print("\n", .{});
+    std.debug.print("\n\nPassed {d}/{d}\n", .{ passed, test_suite.tests.len });
 }
