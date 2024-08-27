@@ -44,7 +44,7 @@ pub const TokenType = enum {
 };
 
 pub fn getName(token: Token, s: []const u8) []const u8 {
-    return switch (token.type) {
+    const name = switch (token.type) {
         .variable => s[token.start_pos + 2 .. token.end_pos - 1],
         .noescape,
         .section_open,
@@ -56,6 +56,8 @@ pub fn getName(token: Token, s: []const u8) []const u8 {
         .implicit_iter => ".",
         .none, .comment => "",
     };
+
+    return std.mem.trim(u8, name, " ");
 }
 
 const std = @import("std");
@@ -80,14 +82,14 @@ test "token name - noescape" {
     const str = "{{& raw_data}}";
     const tok = Token{ .start_pos = 0, .end_pos = str.len - 1, .type = .noescape };
 
-    try testing.expectEqualStrings(" raw_data", tok.getName(str));
+    try testing.expectEqualStrings("raw_data", tok.getName(str));
 }
 
 test "token name - noescape_3" {
     const str = "{{{ raw_data}}}";
     const tok = Token{ .start_pos = 0, .end_pos = str.len - 1, .type = .noescape_3 };
 
-    try testing.expectEqualStrings(" raw_data", tok.getName(str));
+    try testing.expectEqualStrings("raw_data", tok.getName(str));
 }
 
 test "token name - implicit_iter" {
@@ -101,26 +103,26 @@ test "token name - section_open" {
     const str = "{{# my_section}}";
     const tok = Token{ .start_pos = 0, .end_pos = str.len - 1, .type = .section_open };
 
-    try testing.expectEqualStrings(" my_section", tok.getName(str));
+    try testing.expectEqualStrings("my_section", tok.getName(str));
 }
 
 test "token name - inverted_open" {
     const str = "{{^ my_inverted}}";
     const tok = Token{ .start_pos = 0, .end_pos = str.len - 1, .type = .inverted_open };
 
-    try testing.expectEqualStrings(" my_inverted", tok.getName(str));
+    try testing.expectEqualStrings("my_inverted", tok.getName(str));
 }
 
 test "token name - section_close" {
     const str = "{{/ my_section}}";
     const tok = Token{ .start_pos = 0, .end_pos = str.len - 1, .type = .section_close };
 
-    try testing.expectEqualStrings(" my_section", tok.getName(str));
+    try testing.expectEqualStrings("my_section", tok.getName(str));
 }
 
 test "token name - partial" {
     const str = "{{/ my_partial}}";
     const tok = Token{ .start_pos = 0, .end_pos = str.len - 1, .type = .partial };
 
-    try testing.expectEqualStrings(" my_partial", tok.getName(str));
+    try testing.expectEqualStrings("my_partial", tok.getName(str));
 }
