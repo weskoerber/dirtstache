@@ -11,7 +11,7 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
         const data_typeinfo = @typeInfo(data_type);
 
         switch (token.type) {
-            .variable => {
+            .noescape, .noescape_3, .variable => {
                 inline for (data_typeinfo.Struct.fields) |field| {
                     if (std.mem.eql(u8, token.getName(s), field.name)) {
                         const value = @field(data, field.name);
@@ -23,7 +23,9 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
                 }
             },
             .comment => {},
-            else => @panic("TODO"),
+            else => {
+                std.debug.panic("TODO: Token '{s}' is not yet implemented", .{@tagName(token.type)});
+            },
         }
 
         prev_pos = token.end_pos + 1;
