@@ -11,6 +11,8 @@ pub const NUM = '#';
 pub const CARAT = '^';
 pub const F_SLASH = '/';
 pub const GT = '>';
+pub const LT = '<';
+pub const QUOT = '"';
 
 pub const TokenType = enum {
     none,
