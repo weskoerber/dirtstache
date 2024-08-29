@@ -19,6 +19,16 @@ pub fn build(b: *std.Build) void {
 
     const run_test_exe = b.addRunArtifact(test_exe);
     test_step.dependOn(&run_test_exe.step);
+
+    const spec_test_exe = b.addTest(.{
+        .root_source_file = b.path("test/spec/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    spec_test_exe.root_module.addImport("dirtstache", dirtstache);
+
+    const run_spec_test_exe = b.addRunArtifact(spec_test_exe);
+    test_step.dependOn(&run_spec_test_exe.step);
 }
 
 const std = @import("std");
