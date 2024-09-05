@@ -12,7 +12,7 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
 
         switch (token.type) {
             .noescape, .noescape_3, .variable => {
-                inline for (data_typeinfo.Struct.fields) |field| {
+                inline for (data_typeinfo.@"struct".fields) |field| {
                     if (std.mem.eql(u8, token.getName(s), field.name)) {
                         const value = @field(data, field.name);
                         if (try formatValue(allocator, value, token.type == .variable)) |str| {
@@ -40,10 +40,10 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
 
 fn formatValue(allocator: Allocator, value: anytype, escape: bool) !?[]const u8 {
     return switch (@typeInfo(@TypeOf(value))) {
-        .Bool => try fmt.allocPrint(allocator, "{s}", .{if (value) "true" else "false"}),
-        .Int, .ComptimeInt => try fmt.allocPrint(allocator, "{d}", .{value}),
-        .Float, .ComptimeFloat => try fmt.allocPrint(allocator, "{d}", .{value}),
-        .Array => |a| blk: {
+        .bool => try fmt.allocPrint(allocator, "{s}", .{if (value) "true" else "false"}),
+        .int, .comptime_int => try fmt.allocPrint(allocator, "{d}", .{value}),
+        .float, .comptime_float => try fmt.allocPrint(allocator, "{d}", .{value}),
+        .array => |a| blk: {
             if (a.child != u8) @panic("Array of " ++ @typeName(a.child) ++ " not allowed");
 
             if (escape) {
@@ -63,11 +63,11 @@ fn formatValue(allocator: Allocator, value: anytype, escape: bool) !?[]const u8 
                 break :blk try fmt.allocPrint(allocator, "{s}", .{value});
             }
         },
-        .Pointer => |p| blk: {
-            if (@typeInfo(p.child) != .Array) @panic("Pointer to " ++ @typeName(p.child) ++ " not allowed");
+        .pointer => |p| blk: {
+            if (@typeInfo(p.child) != .array) @panic("Pointer to " ++ @typeName(p.child) ++ " not allowed");
             break :blk try formatValue(allocator, value.*, escape);
         },
-        .Null => null,
+        .null => null,
         else => @panic("TODO: Type '" ++ @typeName(@TypeOf(value)) ++ " not yet implemented"),
     };
 }
