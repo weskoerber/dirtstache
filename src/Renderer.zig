@@ -1,5 +1,7 @@
 pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) ![]const u8 {
     var dest = ArrayList(u8).init(allocator);
+    errdefer dest.deinit();
+
     const tokens = try Tokenizer.parseFromSlice(allocator, s);
     defer allocator.free(tokens);
     var prev_pos: usize = 0;
