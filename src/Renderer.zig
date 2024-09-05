@@ -26,7 +26,7 @@ pub fn renderSlice(allocator: Allocator, s: []const u8, comptime data: anytype) 
             },
             .comment => {},
             else => {
-                std.debug.panic("TODO: Token '{s}' is not yet implemented", .{@tagName(token.type)});
+                return error.NotImplemented; // TODO
             },
         }
 
@@ -70,7 +70,7 @@ fn formatValue(allocator: Allocator, value: anytype, escape: bool) !?[]const u8 
             break :blk try formatValue(allocator, value.*, escape);
         },
         .null => null,
-        else => @panic("TODO: Type '" ++ @typeName(@TypeOf(value)) ++ " not yet implemented"),
+        else => return error.NotImplemented, // TODO
     };
 }
 
